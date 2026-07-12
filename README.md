@@ -1,6 +1,6 @@
 # FPGA-Based Spiking Neural Network Hardware Accelerator
 
-**Bhargav K & Suraj N — IIT Hyderabad, Elektronica Club**
+**Bhargav K & Suraj N — IIT Hyderabad**
 
 This project is an FPGA implementation of a Spiking Neural Network (SNN) accelerator, replicating the architecture proposed in:
 
