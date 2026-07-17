@@ -31,33 +31,50 @@ test_loader  = DataLoader(test_data,  batch_size=BATCH_SIZE, shuffle=False)
 # ── Model ─────────────────────────────────────────────────────────────────────
 # Two linear layers with LIF neurons after each
 net = nn.Sequential(
-    nn.Flatten(),
-    nn.Linear(784, HIDDEN, bias=False),   # no bias — simpler in hardware
+    nn.Linear(784, HIDDEN, bias=False),   # W1: weight lookup when spike=1
     snn.Leaky(beta=BETA, init_hidden=True),
-    nn.Linear(HIDDEN, OUTPUT, bias=False),
+    nn.Linear(HIDDEN, OUTPUT, bias=False), # W2
     snn.Leaky(beta=BETA, init_hidden=True, output=True)
 )
 
 optimizer = torch.optim.Adam(net.parameters(), lr=LR)
 loss_fn   = SF.ce_rate_loss()   # cross-entropy on spike rate
 
+# Rate coding method
+def rate_encode(imgs, n_steps):
+    """
+    imgs: [batch, 784] float tensor, values 0.0 to 1.0
+    Returns: [n_steps, batch, 784] binary spike tensor
+    """
+    spikes = []
+    for _ in range(n_steps):
+        # each pixel fires with probability = pixel intensity
+        spike = torch.bernoulli(imgs)   # 1 with prob=pixel, 0 otherwise
+        spikes.append(spike)
+    return torch.stack(spikes, dim=0)  # [T, B, 784]
+
+
 # ── Training ──────────────────────────────────────────────────────────────────
 def train_one_epoch(loader):
     net.train()
     total_loss = 0
     for imgs, labels in loader:
-        imgs = imgs.view(imgs.size(0), -1)  # flatten 28x28 → 784
+        imgs = imgs.view(imgs.size(0), -1)  # [B, 784]
 
-        # run for N_STEPS timesteps
+        # reset membrane potentials
         for m in net.modules():
-          if hasattr(m, 'reset_hidden'):
-            m.reset_hidden()
+            if hasattr(m, 'reset_hidden'):
+                m.reset_hidden()
+
+        # rate encode: pixels → spike trains
+        spike_input = rate_encode(imgs, N_STEPS)  # [T, B, 784]
+
         spk_rec = []
-        for _ in range(N_STEPS):
-            spk_out, _ = net(imgs)
+        for t in range(N_STEPS):
+            spk_out, _ = net(spike_input[t])   # feed one timestep of spikes
             spk_rec.append(spk_out)
 
-        spk_rec = torch.stack(spk_rec, dim=0)  # [T, B, 10]
+        spk_rec = torch.stack(spk_rec, dim=0)
         loss = loss_fn(spk_rec, labels)
 
         optimizer.zero_grad()
@@ -136,4 +153,3 @@ save_mem(W2_q, "weights/W2.mem")
 print("\nDone. In your Verilog testbench, load weights like this:")
 print('  $readmemh("weights/W1.mem", weight_bram_layer1);')
 print('  $readmemh("weights/W2.mem", weight_bram_layer2);')
-
