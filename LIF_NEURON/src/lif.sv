@@ -23,14 +23,15 @@
 module lif #(
 
     parameter BITWIDTH = 16,
-    parameter N_INPUTS = 4,
-    parameter THRESHOLD = 100
+    parameter N_INPUTS = 784,
+    parameter THRESHOLD = 1
     
 )(
     input wire rst,
     input wire clk,
     input wire [N_INPUTS-1:0] spike_in,
     input wire signed [BITWIDTH-1:0] weights [0:N_INPUTS-1], // size of each bit and no of weights respectively
+
     output reg spike_out
 );
 
@@ -39,7 +40,7 @@ module lif #(
     wire signed[BITWIDTH-1:0] after_leak;
     integer i; 
     
-    assign after_leak = membrane>>>1; // 50% leak 
+    assign after_leak = membrane - (membrane>>>1); // 50% remains after leak 
     
     always @(*) begin 
         
@@ -63,7 +64,7 @@ module lif #(
         
         else if(after_integrate>=THRESHOLD) begin 
         
-            membrane <= after_integrate - THRESHOLD;   //reset
+            membrane <= 0;   //reset , hard reset
             spike_out <= 1;  //fire
             
         end 
